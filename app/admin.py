@@ -38,11 +38,13 @@ redis = Redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
 def _gen_event_id() -> str:
     return f"evt_{uuid.uuid4().hex[:8]}"
 
-def _gen_ticket_id(i: int | None = None) -> str:
-    # ticket-alpha-01, ticket-llama-02, etc.
-    w = WORDS[uuid.uuid4().int % len(WORDS)]
-    suffix = (i if i is not None else (uuid.uuid4().int % 100)).__int__()
-    return f"ticket-{w}-{suffix:02d}"
+def _gen_ticket_id(event_id: str, i: int) -> str:
+    # evt_ab12cd34 -> ab12
+    short = event_id.split("_")[-1][:4]
+    word = WORDS[(i - 1) % len(WORDS)]
+    # ticket-ab12-ivory-001
+    return f"ticket-{short}-{word}-{i:03d}"
+
 
 
 def _mint_token(ticket_id: str, event_id: str, org_id: str, ttl_minutes: int = 60) -> str:
@@ -79,7 +81,7 @@ def create_event(req: CreateEventReq):
 
         tickets = []
         for i in range(1, req.ticket_count + 1):
-            tickets.append(Ticket(id=_gen_ticket_id(i), event_id=event_id, org_id=req.org_id))
+            tickets.append(Ticket(id=_gen_ticket_id(event_id, i), event_id=event_id, org_id=req.org_id))
 
 
         db.add_all(tickets)
