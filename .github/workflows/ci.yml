@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  security-and-fuzz:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: tickets
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+
+    env:
+      # Keep CI deterministic; no need to use .env in CI
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/tickets
+      REDIS_URL: redis://localhost:6379/0
+      TICKET_SIGNING_SECRET: ci_secret
+      OFFLINE_MODE: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install app deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install semgrep pip-audit schemathesis syft trivy
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+
+      - name: SAST (semgrep)
+        run: semgrep --config auto --error
+
+      - name: Dependency audit (pip-audit)
+        run: pip-audit -r requirements.txt
+
+      - name: Trivy FS scan
+        run: trivy fs --exit-code 1 --severity CRITICAL,HIGH .
+
+      - name: Build docker image
+        run: docker build -t ticket-gate:ci .
+
+      - name: Trivy Image scan
+        run: trivy image --exit-code 1 --severity CRITICAL,HIGH ticket-gate:ci
+
+      - name: SBOM (syft)
+        run: syft ticket-gate:ci -o spdx-json > sbom.spdx.json
+
+      - name: Start API
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          sleep 3
+
+      - name: API fuzzing (schemathesis)
+        run: schemathesis run http://localhost:8000/openapi.json --checks all

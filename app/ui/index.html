@@ -1,0 +1,455 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Ticket Gate — Operator</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121a33; --border:#243056; --muted:#a8b4d8;
+      --btn:#1a2550; --btnBorder:#2b3a6a; --ok:#2fe07b; --bad:#ff5e5e; --warn:#ffcc66;
+      --panel:#0e1530;
+    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);color:#e8eefc;}
+    .wrap{max-width:1200px;margin:0 auto;padding:18px;}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+    .title{display:flex;flex-direction:column;gap:4px;}
+    h1{margin:0;font-size:18px;}
+    .sub{color:var(--muted);font-size:12px;}
+
+    .layout{display:grid;grid-template-columns:320px 1fr 440px;gap:12px;align-items:start;}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;min-width:0;}
+    .card h2{margin:0 0 10px;font-size:14px;color:#dbe4ff;}
+    .btn{padding:10px 12px;border-radius:10px;border:1px solid var(--btnBorder);background:var(--btn);color:#e8eefc;cursor:pointer}
+    .btn:hover{filter:brightness(1.08)}
+    .btn.full{width:100%}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--btnBorder);background:var(--panel);font-size:12px}
+    .pill.ok{color:var(--ok)}
+    .pill.warn{color:var(--warn)}
+
+    .list{display:flex;flex-direction:column;gap:10px;}
+    .eventCard{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--panel);}
+    .eventRow{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+    .eventName{font-weight:600;font-size:13px;}
+    .eventMeta{color:var(--muted);font-size:12px;margin-top:6px;}
+    .link{color:#7fb0ff;text-decoration:underline;cursor:pointer;font-size:12px;white-space:nowrap}
+
+    label{display:block;font-size:12px;color:var(--muted);margin-top:10px;}
+    select,input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--btnBorder);background:var(--panel);color:#e8eefc;}
+    .centerStatus{margin-top:12px;border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--panel);}
+    .big{font-size:14px;font-weight:700;}
+    .small{font-size:12px;color:var(--muted);margin-top:6px;}
+    .big.ok{color:var(--ok)} .big.bad{color:var(--bad)} .big.warn{color:var(--warn)}
+
+    /* Logs: contained + scrollable */
+    .logsBox{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:12px;
+      overflow:hidden;
+    }
+    .logsScroll{
+      max-height:70vh;
+      overflow:auto;
+    }
+    table{width:100%;border-collapse:collapse;font-size:12px;min-width:760px;}
+    th,td{padding:8px;border-bottom:1px solid #22305c;text-align:left;vertical-align:top;}
+    th{color:#cdd9ff;font-weight:600;position:sticky;top:0;background:var(--panel);z-index:1;}
+    .nowrap{white-space:nowrap}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px}
+    .muted{color:var(--muted)}
+    .statusOk{color:var(--ok)}
+    .statusBad{color:var(--bad)}
+    .statusWarn{color:var(--warn)}
+
+    /* Modals centered */
+    .modalOverlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.55);
+      display:none;align-items:center;justify-content:center;
+      padding:24px;
+    }
+    .modal{width:380px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;}
+    .modalWide{width:520px;max-height:80vh;overflow:auto;}
+    .modalHeader{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+    .x{cursor:pointer;border:1px solid var(--btnBorder);background:transparent;color:#e8eefc;border-radius:10px;padding:6px 10px}
+    .modalFooter{margin-top:12px;display:flex;gap:10px;}
+    .err{margin-top:10px;font-size:12px;color:var(--warn)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">
+        <h1>Validate a ticket</h1>
+        <div class="sub">Operator view: create events → scan tickets → see logs. No tokens exposed.</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <span id="netPill" class="pill">Now …</span>
+        <button id="toggleBtn" class="btn">Go Offline</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <!-- LEFT -->
+      <div class="card">
+        <h2>Events</h2>
+        <button class="btn full" onclick="openCreateEvent()">+ Create Event</button>
+        <div style="height:10px"></div>
+        <div id="eventsList" class="list"></div>
+      </div>
+
+      <!-- MIDDLE -->
+      <div class="card">
+        <h2>Ticket scanner</h2>
+
+        <label>Event Dropdown</label>
+        <select id="eventSelect" onchange="onEventSelect()">
+          <option value="">Select Event</option>
+        </select>
+
+        <label>Ticket Dropdown</label>
+        <select id="ticketSelect">
+          <option value="">Select Ticket ID</option>
+        </select>
+
+        <button class="btn" style="margin-top:12px" onclick="validateSelected()">Validate</button>
+
+        <div class="centerStatus" id="scanResult">
+          <div class="big muted">No scan yet</div>
+          <div class="small">Pick an event and ticket, then validate.</div>
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 style="margin:0">LOGS</h2>
+          <button class="btn" onclick="refreshLogs()">Refresh</button>
+        </div>
+
+        <div class="muted" style="margin:8px 0 10px;">Latest actions</div>
+
+        <div class="logsBox">
+          <div class="logsScroll">
+            <table>
+              <thead>
+                <tr>
+                  <th class="nowrap">Time</th>
+                  <th>Ticket</th>
+                  <th>Event</th>
+                  <th>Status</th>
+                  <th>Reason</th>
+                  <th>Decision ID</th>
+                </tr>
+              </thead>
+              <tbody id="logsBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="muted" style="margin-top:10px;font-size:12px;">
+          Tip: after reset, logs will be empty until you scan.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Create Event -->
+  <div id="createEventOverlay" class="modalOverlay">
+    <div class="modal">
+      <div class="modalHeader">
+        <div style="font-weight:700;">Create a New Event</div>
+        <button class="x" onclick="closeCreateEvent()">×</button>
+      </div>
+
+      <label>Event Name</label>
+      <input id="eventNameInput" placeholder="Tournament"/>
+
+      <label>Ticket count</label>
+      <input id="ticketCountInput" type="number" min="1" max="5000" value="10"/>
+
+      <div class="modalFooter">
+        <button class="btn full" style="background:#1f6f3b;border-color:#2fe07b" onclick="submitCreateEvent()">Submit</button>
+      </div>
+
+      <div id="createEventErr" class="err"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Event Details -->
+  <div id="eventDetailsOverlay" class="modalOverlay">
+    <div class="modal modalWide">
+      <div class="modalHeader">
+        <div style="font-weight:700;" id="detailsTitle">Event Details</div>
+        <button class="x" onclick="closeEventDetails()">×</button>
+      </div>
+      <div id="detailsMeta" class="muted" style="font-size:12px;margin-bottom:10px;"></div>
+      <div id="detailsTickets"></div>
+    </div>
+  </div>
+
+<script>
+let offline = false;
+let events = [];
+let ticketsByEvent = {};
+let toggling = false;
+
+async function api(path, opts={}) {
+  const res = await fetch(path, {
+    headers: { "Content-Type":"application/json", ...(opts.headers||{}) },
+    ...opts
+  });
+  let body = null;
+  try { body = await res.json(); }
+  catch { body = {"ok":false,"error":"Non-JSON response"}; }
+
+  if (!res.ok) {
+    throw new Error(body?.detail ? JSON.stringify(body.detail) : (body?.error || ("HTTP "+res.status)));
+  }
+  return body;
+}
+
+function escapeHtml(s){
+  return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+}
+
+function setNetPill(){
+  const pill = document.getElementById("netPill");
+  const btn = document.getElementById("toggleBtn");
+  if (!offline) {
+    pill.textContent = "Now ONLINE";
+    pill.className = "pill ok";
+    btn.textContent = "Go Offline";
+  } else {
+    pill.textContent = "Now OFFLINE";
+    pill.className = "pill warn";
+    btn.textContent = "Go Online";
+  }
+  btn.disabled = toggling;
+}
+
+async function refreshOffline(){
+  const d = await fetch("/admin/offline").then(r => r.json());
+  offline = !!d.offline;
+  setNetPill();
+}
+
+async function toggleOffline(){
+  toggling = true; setNetPill();
+  try {
+    offline = !offline;
+    await api("/admin/offline", { method:"POST", body: JSON.stringify({ enabled: offline })});
+    await refreshOffline();
+    await refreshLogs();
+  } catch (e) {
+    offline = !offline;
+    await refreshOffline();
+  } finally {
+    toggling = false; setNetPill();
+  }
+}
+document.getElementById("toggleBtn").addEventListener("click", toggleOffline);
+
+function renderEvents(){
+  const list = document.getElementById("eventsList");
+  list.innerHTML = "";
+  if (!events.length) {
+    list.innerHTML = `<div class="muted">No events yet. Click “Create Event”.</div>`;
+    return;
+  }
+
+  events.forEach(e => {
+    const div = document.createElement("div");
+    div.className = "eventCard";
+    div.innerHTML = `
+      <div class="eventRow">
+        <div>
+          <div class="eventName">${escapeHtml(e.name || e.event_id)}</div>
+          <div class="eventMeta">${escapeHtml(e.event_id)} · ${escapeHtml(e.org_id)}</div>
+        </div>
+        <div class="link">view tickets >></div>
+      </div>
+    `;
+    div.querySelector(".link").onclick = () => openEventDetails(e.event_id);
+    list.appendChild(div);
+  });
+}
+
+function renderEventDropdown(){
+  const sel = document.getElementById("eventSelect");
+  const current = sel.value;
+  sel.innerHTML = `<option value="">Select Event</option>`;
+  events.forEach(e => {
+    const opt = document.createElement("option");
+    opt.value = e.event_id;
+    opt.textContent = `${e.name} (${e.event_id})`;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+async function refreshEvents(){
+  events = await fetch("/admin/events").then(r => r.json());
+  renderEvents();
+  renderEventDropdown();
+}
+
+async function onEventSelect(){
+  const eventId = document.getElementById("eventSelect").value;
+  if (!eventId) return;
+  const t = await fetch(`/admin/events/${eventId}/tickets?limit=500`).then(r => r.json());
+  ticketsByEvent[eventId] = t;
+  renderTicketDropdown(eventId);
+}
+
+function renderTicketDropdown(eventId){
+  const sel = document.getElementById("ticketSelect");
+  sel.innerHTML = `<option value="">Select Ticket ID</option>`;
+  (ticketsByEvent[eventId] || []).forEach(t => {
+    const opt = document.createElement("option");
+    opt.value = t.ticket_id;
+    opt.textContent = `${t.ticket_id} (${t.status})`;
+    sel.appendChild(opt);
+  });
+}
+
+function setScanResult(status, reason, decisionId){
+  const box = document.getElementById("scanResult");
+  if (!status) {
+    box.innerHTML = `<div class="big muted">No scan yet</div><div class="small">Pick an event and ticket, then validate.</div>`;
+    return;
+  }
+  let cls="muted", icon="";
+  if (status === "ACCEPTED") { cls="ok"; icon="✅"; }
+  if (status === "REJECTED") { cls="bad"; icon="⛔"; }
+  if (status === "PENDING_SYNC") { cls="warn"; icon="🕒"; }
+  box.innerHTML = `
+    <div class="big ${cls}">${icon} ${escapeHtml(status)}</div>
+    <div class="small">Reason: <b>${escapeHtml(reason || "")}</b></div>
+    <div class="small">Decision ID: <span class="mono">${escapeHtml(decisionId || "")}</span></div>
+  `;
+}
+
+async function validateSelected(){
+  const eventId = document.getElementById("eventSelect").value;
+  const ticketId = document.getElementById("ticketSelect").value;
+  if (!eventId || !ticketId) {
+    setScanResult("REJECTED", "Select event + ticket first", "");
+    return;
+  }
+  try {
+    const out = await api("/admin/scan", { method:"POST", body: JSON.stringify({ event_id: eventId, ticket_id: ticketId })});
+    setScanResult(out.status, out.reason_code, out.decision_id);
+    await onEventSelect();
+    await refreshLogs();
+  } catch (e) {
+    setScanResult("REJECTED", String(e.message || e), "");
+  }
+}
+
+async function refreshLogs(){
+  const rows = await fetch("/admin/audit?limit=60").then(r => r.json());
+  const body = document.getElementById("logsBody");
+  body.innerHTML = "";
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    const statusClass = r.status === "ACCEPTED" ? "statusOk" : (r.status === "PENDING_SYNC" ? "statusWarn" : "statusBad");
+    const evLabel = r.event_name || r.event_id || "";
+    tr.innerHTML = `
+      <td class="nowrap">${escapeHtml(r.created_at)}</td>
+      <td>${escapeHtml(r.ticket_id || "")}</td>
+      <td>${escapeHtml(evLabel)}</td>
+      <td class="${statusClass}">${escapeHtml(r.status || "")}</td>
+      <td>${escapeHtml(r.reason_code || "")}</td>
+      <td class="mono">${escapeHtml(r.decision_id || "")}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+function openCreateEvent(){
+  document.getElementById("createEventOverlay").style.display = "flex";
+  document.getElementById("createEventErr").textContent = "";
+  document.getElementById("eventNameInput").focus();
+}
+function closeCreateEvent(){
+  document.getElementById("createEventOverlay").style.display = "none";
+}
+
+async function submitCreateEvent(){
+  const name = document.getElementById("eventNameInput").value.trim();
+  const ticket_count = parseInt(document.getElementById("ticketCountInput").value, 10);
+
+  if (!name) { document.getElementById("createEventErr").textContent = "Event name is required."; return; }
+  if (!ticket_count || ticket_count < 1) { document.getElementById("createEventErr").textContent = "Ticket count must be >= 1."; return; }
+
+  document.getElementById("createEventErr").textContent = "Submitting…";
+
+  try {
+    const out = await api("/admin/events", { method:"POST", body: JSON.stringify({ name, ticket_count, org_id:"org_1" })});
+    await refreshEvents();
+    closeCreateEvent();
+
+    // auto-select newly created event in scanner
+    document.getElementById("eventSelect").value = out.event_id;
+    await onEventSelect();
+    setScanResult(null,null,null);
+  } catch (e) {
+    document.getElementById("createEventErr").textContent = "Create failed: " + (e.message || e);
+  }
+}
+
+async function openEventDetails(eventId){
+  const ev = events.find(e => e.event_id === eventId);
+  document.getElementById("detailsTitle").textContent = (ev?.name || "Event") + " — Tickets";
+  document.getElementById("detailsMeta").textContent = `${eventId} · ${ev?.org_id || ""}`;
+
+  const t = await fetch(`/admin/events/${eventId}/tickets?limit=500`).then(r => r.json());
+  ticketsByEvent[eventId] = t;
+
+  const container = document.getElementById("detailsTickets");
+  container.innerHTML = "";
+
+  t.forEach(ticket => {
+    const div = document.createElement("div");
+    div.className = "eventCard";
+    div.style.marginBottom = "8px";
+    const statusClass = ticket.status === "REDEEMED" ? "statusBad" : "statusOk";
+    div.innerHTML = `
+      <div class="eventRow">
+        <div>
+          <div class="eventName mono">${escapeHtml(ticket.ticket_id)}</div>
+          <div class="eventMeta">${ticket.redeemed_at ? ("Redeemed: " + escapeHtml(ticket.redeemed_at)) : "Unused"}</div>
+        </div>
+        <div class="${statusClass}" style="font-weight:700">${escapeHtml(ticket.status)}</div>
+      </div>
+    `;
+    div.onclick = async () => {
+      document.getElementById("eventSelect").value = eventId;
+      await onEventSelect();
+      document.getElementById("ticketSelect").value = ticket.ticket_id;
+      closeEventDetails();
+    };
+    container.appendChild(div);
+  });
+
+  document.getElementById("eventDetailsOverlay").style.display = "flex";
+}
+
+function closeEventDetails(){
+  document.getElementById("eventDetailsOverlay").style.display = "none";
+}
+
+// auto refresh logs so offline scans show up quickly (assuming backend audits PENDING_SYNC)
+setInterval(refreshLogs, 2000);
+
+(async function boot(){
+  await refreshOffline();
+  await refreshEvents();
+  await refreshLogs();
+  setScanResult(null,null,null);
+})();
+</script>
+</body>
+</html>
