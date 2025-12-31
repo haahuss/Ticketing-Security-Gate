@@ -12,6 +12,13 @@ This mirrors real operational constraints in ticketing: poor connectivity, fraud
 
 ---
 
+
+## Demo Video
+
+
+
+---
+
 ## Architecture
 
 ![alt text](assets/architecture_diagram.png)
@@ -46,11 +53,6 @@ _To reset environment, run `docker compose down -v` and then run the above docke
 
 ---
 
-## Demo Video
-
-<!-- DEMO VIDEO DO THISS -->
-
----
 
 ## Automated Security Testing
 
