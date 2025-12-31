@@ -14,7 +14,7 @@ This mirrors real operational constraints in ticketing: poor connectivity, fraud
 
 
 ## Demo Video
-
+[Demo Video showing security features - Ticketing Security Gate](https://drive.google.com/file/d/1BLjN4M_Zax5RFGI45avuEAdBdvUixjwu/view)
 
 
 ---
