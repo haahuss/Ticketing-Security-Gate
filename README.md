@@ -29,7 +29,7 @@ This mirrors real operational constraints in ticketing: poor connectivity, fraud
 
 ## Architecture
 
-![alt text](assets/architecture_diagram.png)
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/51e2ab3f-5dce-422d-95da-9d19a0c65d63" />
 
 ---
 
