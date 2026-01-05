@@ -1,12 +1,20 @@
 # Ticketing Security Gate (DevSecOps project)
 
-A ticket validation service that simulates **game-day scanning** with the following security measures:
+🛡️ A ticket validation application that simulates **game-day ticket-scanning**, built to demonstrate the following security features:
 - **One-time use** (replay protection)
 - **Rate limiting / bot resistance**
 - **Idempotence safety**
 - **Offline scanning + store-and-forward sync**
 - **Full audit logging** (who/what/when/why)
 - **Security regression tests + CI** (GitHub Actions)
+
+🛠️ Tech Stack:
+- **FastAPI (Python) API + worker**
+- **Docker/Docker Compose**
+- **PostgreSQL (SQLAlchemy)**
+- **Redis for replay cache/rate limiting/idempotency/offline queue**
+- **pytest + httpx + pytest-asyncio for automated regression tests**
+- **GitHub Actions for CI**
 
 This mirrors real operational constraints in ticketing: poor connectivity, fraud/replay attempts, burst traffic, and the need for auditable decisions.
 
